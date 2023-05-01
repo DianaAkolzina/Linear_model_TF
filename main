@@ -1,0 +1,97 @@
+# Import necessary libraries
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import pandas as pd
+import seaborn as sns
+import sklearn 
+# Load the dataset into a pandas DataFrame
+health = pd.DataFrame(pd.read_csv("datahealth.csv"))
+
+# Split the data into 80% training and 20% testing sets
+train = health.sample(frac=0.8, random_state=42)
+test = health.drop(train.index)
+
+# Separate the target variable (X1) from the feature variables
+outcome = train[['X1']]
+features = train.iloc[:, 1:5]
+
+# Prepare the testing data by separating the target variable (X1) from the feature variables
+outcome_test = test[['X1']]
+features_test = test.iloc[:, 1:5]
+
+# Visualize the relationship between the variables in the training data
+sns.pairplot(train[['X1', 'X2', 'X3', 'X4', 'X5']], diag_kind='kde')
+plt.show()
+
+# Print the mean and standard deviation for each variable in the training data
+print(train.describe().transpose()[['mean', 'std']])
+
+# Create a Normalization layer to normalize the feature variables
+normalizer = tf.keras.layers.Normalization(axis=-1)
+
+# Adapt the normalizer to the training data
+normalizer.adapt(np.array(features))
+
+# Build a linear model using the Sequential API from TensorFlow
+linear_model = tf.keras.Sequential([
+    normalizer,
+    tf.keras.layers.Dense(units=64, activation='relu', use_bias=True),
+    tf.keras.layers.Dense(units=32, activation='relu', use_bias=True),
+    tf.keras.layers.Dense(units=16, activation='relu', use_bias=True),
+    tf.keras.layers.Dense(units=1)
+])
+
+# Compile the linear model with the Adam optimizer and mean absolute error as the loss function
+linear_model.compile(
+    optimizer=tf.optimizers.Adam(learning_rate=0.08),
+    loss='mean_absolute_error')
+
+# Train the model on the training data for 500 epochs, using a validation split of 20%
+history = linear_model.fit(
+    features,
+    outcome,
+    epochs=500,
+    verbose=0,
+    validation_split=0.2)
+
+# Define a function to plot the training and validation loss over time
+def plot_loss(history):
+  plt.plot(history.history['loss'], label='loss')
+  plt.plot(history.history['val_loss'], label='val_loss')
+  plt.ylim([0, 10])
+  plt.xlabel('Epoch')
+  plt.ylabel('Error [MPG]')
+  plt.legend()
+  plt.grid(True)
+
+# Plot the training and validation loss
+plot_loss(history)
+plt.show()
+
+# Evaluate the model on the test data
+test_results = linear_model.evaluate(features_test, outcome_test, verbose=0)
+
+# Print the test results
+print(test_results)
+
+# Generate model predictions on the test features
+predictions = linear_model.predict(features_test)
+
+# Plot the real values vs the predicted values
+plt.scatter(outcome_test, predictions)
+plt.xlabel("True Values")
+plt.ylabel("Predicted Values")
+plt.plot([min(outcome_test.values), max(outcome_test.values)], [min(outcome_test.values), max(outcome_test.values)], color='red')
+plt.show()
+
+# Calculate key metrics of similarity between the true values and the predicted values
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+mae = mean_absolute_error(outcome_test, predictions)
+mse = mean_squared_error(outcome_test, predictions)
+r2 = r2_score(outcome_test, predictions)
+
+print(f"Mean Absolute Error: {mae}")
+print(f"Mean Squared Error: {mse}")
+print(f"R2 Score: {r2}")
